@@ -17,6 +17,10 @@
 # Do not use urllib's HTTP GET and POST mechanisms.
 # Write your own HTTP GET and POST
 # The point is to understand what you have to send and get experience with it
+#
+# Resources:
+# https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/GET
+# https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/POST
 
 import sys
 import socket
@@ -33,7 +37,7 @@ class HTTPResponse(object):
         self.body = body
 
 class HTTPClient(object):
-    #def get_host_port(self,url):
+    #def get_host_port(self, url):
 
     def connect(self, host, port):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -41,13 +45,13 @@ class HTTPClient(object):
         return None
 
     def get_code(self, data):
-        return None
+        return int(data.split()[1])
 
-    def get_headers(self,data):
-        return None
+    def get_headers(self, data):
+        return data.split('\r\n\r\n')[0]
 
     def get_body(self, data):
-        return None
+        return data.split('\r\n\r\n')[1]
     
     def sendall(self, data):
         self.socket.sendall(data.encode('utf-8'))
@@ -68,13 +72,49 @@ class HTTPClient(object):
         return buffer.decode('utf-8')
 
     def GET(self, url, args=None):
-        code = 500
-        body = ""
+        url_components = urllib.parse.urlparse(url)
+        host = url_components.hostname
+        port = url_components.port
+        path = url_components.path
+        if port == None:
+            port = 80
+        if path == '':
+            path = '/'
+
+        request = f'GET {path} HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n\r\n'
+        self.connect(host, port)
+        self.sendall(request)
+        response = self.recvall(self.socket)
+        code = self.get_code(response)
+        body = self.get_body(response)
+        self.close()
         return HTTPResponse(code, body)
 
     def POST(self, url, args=None):
-        code = 500
-        body = ""
+        url_components = urllib.parse.urlparse(url)
+        host = url_components.hostname
+        port = url_components.port
+        path = url_components.path
+        if port == None:
+            port = 80
+        if path == '':
+            path = '/'
+        content = ""
+        if args != None:
+            for field, value in args.items():
+                content += f'{field}={value}&'
+        content = content[:-1]
+        content_length = len(content)
+
+        request = f'POST {path} HTTP/1.1\r\nHost: {host.encode()}\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: {content_length}\r\nConnection: close\r\n\r\n{content}'
+        self.connect(host, port)
+        self.sendall(request)
+        response = self.recvall(self.socket)
+        code = self.get_code(response)
+        body = self.get_body(response)
+
+        self.close()
+
         return HTTPResponse(code, body)
 
     def command(self, url, command="GET", args=None):
